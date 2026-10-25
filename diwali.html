@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Shubh Deepawali — Happy Diwali</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#05020f; font-family: Georgia, 'Noto Serif Devanagari', serif; }
+  #sky { position:fixed; inset:0; display:block; }
+  #start {
+    position:fixed; inset:0; z-index:10; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; cursor:pointer;
+    background: radial-gradient(ellipse at 50% 70%, #2a0f3f 0%, #0a0420 60%, #05020f 100%);
+    transition: opacity 1.2s ease;
+  }
+  #start.hide { opacity:0; pointer-events:none; }
+  .diya-icon {
+    width:90px; height:90px; position:relative; margin-bottom:26px;
+    animation: floaty 3s ease-in-out infinite;
+  }
+  @keyframes floaty { 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-10px) } }
+  .flame-glow {
+    position:absolute; top:-10px; left:50%; transform:translateX(-50%);
+    width:120px; height:120px; border-radius:50%;
+    background: radial-gradient(circle, rgba(255,180,60,0.55) 0%, rgba(255,120,20,0.25) 35%, transparent 70%);
+    animation: flick 0.18s ease-in-out infinite alternate;
+  }
+  @keyframes flick { from{ transform:translateX(-50%) scale(1) } to{ transform:translateX(-50%) scale(1.12) } }
+  .title-start {
+    color:#ffd700; font-size:clamp(28px,7vw,52px); letter-spacing:2px; text-align:center;
+    text-shadow: 0 0 20px rgba(255,180,40,0.8), 0 0 50px rgba(255,100,0,0.5);
+    margin-bottom:10px;
+  }
+  .sub-start {
+    color:#ffd9a0; font-size:clamp(14px,3.5vw,20px); opacity:0.85; margin-bottom:34px; letter-spacing:1px;
+  }
+  .tap-btn {
+    padding:14px 38px; border:2px solid #ffb347; border-radius:40px; color:#fff3d6;
+    font-size:clamp(15px,4vw,19px); letter-spacing:1.5px; background:rgba(255,150,40,0.12);
+    box-shadow: 0 0 25px rgba(255,150,40,0.35), inset 0 0 15px rgba(255,150,40,0.15);
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{ box-shadow:0 0 25px rgba(255,150,40,0.35), inset 0 0 15px rgba(255,150,40,0.15) } 50%{ box-shadow:0 0 45px rgba(255,180,60,0.6), inset 0 0 25px rgba(255,180,60,0.3) } }
+  .hint { position:absolute; bottom:22px; color:#b9a3d9; font-size:12px; opacity:0.6; letter-spacing:1px; }
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+
+<div id="start">
+  <div class="diya-icon">
+    <div class="flame-glow"></div>
+    <svg viewBox="0 0 100 100" width="90" height="90">
+      <ellipse cx="50" cy="78" rx="32" ry="10" fill="#7a2e10"/>
+      <path d="M18 72 Q50 92 82 72 L76 60 Q50 72 24 60 Z" fill="#b5532a"/>
+      <ellipse cx="50" cy="60" rx="26" ry="7" fill="#5a1f08"/>
+      <path d="M50 58 Q46 48 50 38 Q56 48 50 58 Z" fill="#ffdd55"/>
+      <path d="M50 56 Q48 50 50 42 Q53 50 50 56 Z" fill="#fff2b0"/>
+    </svg>
+  </div>
+  <div class="title-start">शुभ दीपावली</div>
+  <div class="sub-start">Festival of Lights · दीपोत्सव</div>
+  <div class="tap-btn">🪔 Tap to Start · शुरू करें</div>
+  <div class="hint">Sound on रखें · आवाज़ ऑन करें</div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('sky');
+  const ctx = canvas.getContext('2d');
+  let W=0, H=0, DPR=1;
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio||1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W*DPR; canvas.height = H*DPR;
+    canvas.style.width = W+'px'; canvas.style.height = H+'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    layoutScene();
+  }
+  window.addEventListener('resize', resize);
+
+  // ---------- AUDIO (synthesized, no files needed) ----------
+  let AC=null, master=null, droneGain=null, started=false;
+  function initAudio(){
+    if(AC) return;
+    AC = new (window.AudioContext||window.webkitAudioContext)();
+    master = AC.createGain(); master.gain.value = 0.9; master.connect(AC.destination);
+    // soft tanpura-style drone (Sa + Pa)
+    droneGain = AC.createGain(); droneGain.gain.value = 0.0; droneGain.connect(master);
+    droneGain.gain.linearRampToValueAtTime(0.05, AC.currentTime+4);
+    [130.81, 196.00, 261.63].forEach((f,i)=>{
+      const o = AC.createOscillator(); o.type='sine'; o.frequency.value=f;
+      const g = AC.createGain(); g.gain.value = i===2?0.25:0.5;
+      const lfo = AC.createOscillator(); lfo.frequency.value = 0.15+i*0.07;
+      const lfoG = AC.createGain(); lfoG.gain.value = 0.2;
+      lfo.connect(lfoG); lfoG.connect(g.gain);
+      o.connect(g); g.connect(droneGain); o.start(); lfo.start();
+    });
+  }
+  function noiseBuffer(dur){
+    const len = Math.floor(AC.sampleRate*dur);
+    const buf = AC.createBuffer(1, len, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i] = Math.random()*2-1;
+    return buf;
+  }
+  function whistle(){
+    if(!AC) return;
+    const t=AC.currentTime;
+    const o=AC.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(420, t);
+    o.frequency.exponentialRampToValueAtTime(1500, t+0.85);
+    const g=AC.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.08, t+0.15);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+0.9);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+0.95);
+  }
+  function boom(power){
+    if(!AC) return;
+    const p = power||1;
+    const t=AC.currentTime;
+    // low thump
+    const o=AC.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(110*p, t);
+    o.frequency.exponentialRampToValueAtTime(38, t+0.45);
+    const g=AC.createGain();
+    g.gain.setValueAtTime(0.5*p, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t+0.5);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+0.55);
+    // noise burst
+    const src=AC.createBufferSource(); src.buffer=noiseBuffer(0.6);
+    const lp=AC.createBiquadFilter(); lp.type='lowpass';
+    lp.frequency.setValueAtTime(1400, t);
+    lp.frequency.exponentialRampToValueAtTime(120, t+0.5);
+    const ng=AC.createGain();
+    ng.gain.setValueAtTime(0.35*p, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t+0.55);
+    src.connect(lp); lp.connect(ng); ng.connect(master); src.start(t);
+  }
+  function crackle(){
+    if(!AC) return;
+    const t=AC.currentTime;
+    const n = 18+Math.floor(Math.random()*10);
+    for(let i=0;i<n;i++){
+      const tt = t+0.15+Math.random()*1.6;
+      const src=AC.createBufferSource(); src.buffer=noiseBuffer(0.04);
+      const bp=AC.createBiquadFilter(); bp.type='bandpass';
+      bp.frequency.value = 2200+Math.random()*2500; bp.Q.value=1.2;
+      const g=AC.createGain();
+      const v = 0.04+Math.random()*0.09;
+      g.gain.setValueAtTime(v, tt);
+      g.gain.exponentialRampToValueAtTime(0.001, tt+0.05);
+      src.connect(bp); bp.connect(g); g.connect(master); src.start(tt); src.stop(tt+0.06);
+    }
+  }
+
+  // ---------- SCENE LAYOUT ----------
+  let stars=[], diyas=[], lanterns=[], rockets=[], particles=[], embers=[];
+  function layoutScene(){
+    stars=[];
+    const n = Math.floor(W*H/6000);
+    for(let i=0;i<n;i++) stars.push({x:Math.random()*W, y:Math.random()*H*0.65, r:Math.random()*1.3+0.3, tw:Math.random()*Math.PI*2, sp:0.5+Math.random()*2});
+    diyas=[];
+    const groundY = H*0.88;
+    const count = Math.max(7, Math.floor(W/70));
+    for(let i=0;i<count;i++){
+      const x = (i+0.5)*(W/count);
+      diyas.push({x, y:groundY + (i%2)*4, s:0.8+Math.random()*0.35, ph:Math.random()*Math.PI*2});
+    }
+  }
+
+  // ---------- BACKGROUND ----------
+  function drawSky(t){
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#070318'); g.addColorStop(0.45,'#150830');
+    g.addColorStop(0.75,'#2b0f42'); g.addColorStop(1,'#3d1438');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // stars
+    for(const s of stars){
+      const a = 0.4+0.6*Math.abs(Math.sin(t*s.sp + s.tw));
+      ctx.globalAlpha=a; ctx.fillStyle='#fff6d8';
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,6.283); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    // moon
+    const mx=W*0.82, my=H*0.16, mr=Math.min(W,H)*0.045;
+    const mg=ctx.createRadialGradient(mx,my,mr*0.3,mx,my,mr*4);
+    mg.addColorStop(0,'rgba(255,240,200,0.35)'); mg.addColorStop(1,'transparent');
+    ctx.fillStyle=mg; ctx.beginPath(); ctx.arc(mx,my,mr*4,0,6.283); ctx.fill();
+    ctx.fillStyle='#fff3cf'; ctx.beginPath(); ctx.arc(mx,my,mr,0,6.283); ctx.fill();
+    ctx.fillStyle='rgba(220,200,160,0.35)';
+    ctx.beginPath(); ctx.arc(mx-mr*0.3,my-mr*0.2,mr*0.18,0,6.283); ctx.fill();
+    ctx.beginPath(); ctx.arc(mx+mr*0.25,my+mr*0.3,mr*0.13,0,6.283); ctx.fill();
+  }
+
+  function drawSilhouette(){
+    const gy = H*0.88;
+    ctx.fillStyle='#0a0518';
+    // buildings
+    const bw = W/14;
+    for(let i=0;i<14;i++){
+      const bh = (0.06+((i*37)%10)/10*0.10)*H;
+      const x=i*bw;
+      ctx.fillRect(x, gy-bh, bw-2, bh);
+      // lit windows
+      ctx.fillStyle='rgba(255,190,80,0.85)';
+      for(let wy=gy-bh+8; wy<gy-8; wy+=14){
+        for(let wx=x+6; wx<x+bw-8; wx+=12){
+          if(((wx*7+wy*13+i)%5)<2) ctx.fillRect(wx,wy,4,6);
+        }
+      }
+      ctx.fillStyle='#0a0518';
+    }
+    // central temple shikhara
+    const cx=W*0.5;
+    ctx.beginPath();
+    ctx.moveTo(cx-70, gy);
+    ctx.quadraticCurveTo(cx-60, gy-60, cx-45, gy-95);
+    ctx.quadraticCurveTo(cx-30, gy-130, cx-18, gy-155);
+    ctx.quadraticCurveTo(cx-8, gy-175, cx, gy-185);
+    ctx.quadraticCurveTo(cx+8, gy-175, cx+18, gy-155);
+    ctx.quadraticCurveTo(cx+30, gy-130, cx+45, gy-95);
+    ctx.quadraticCurveTo(cx+60, gy-60, cx+70, gy);
+    ctx.closePath(); ctx.fill();
+    // kalash + flag
+    ctx.fillRect(cx-2, gy-205, 4, 22);
+    ctx.beginPath(); ctx.arc(cx, gy-208, 6, 0, 6.283); ctx.fill();
+    // side domes
+    for(const dx of [-110,110]){
+      ctx.beginPath(); ctx.arc(cx+dx, gy-30, 26, Math.PI, 0); ctx.fill();
+      ctx.fillRect(cx+dx-26, gy-30, 52, 30);
+    }
+    // ground strip
+    ctx.fillStyle='#0d0620';
+    ctx.fillRect(0, gy, W, H-gy);
+  }
+
+  function drawRangoli(t){
+    const cx=W*0.5, cy=H*0.94, R=Math.min(W,H)*0.11;
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.rotate(t*0.05);
+    ctx.shadowBlur=18;
+    const cols=['#ff3b6b','#ffd32a','#39ff88','#3aa0ff','#c77dff','#ff8c1a'];
+    const petals=12;
+    for(let i=0;i<petals;i++){
+      ctx.save();
+      ctx.rotate(i*Math.PI*2/petals);
+      ctx.shadowColor=cols[i%cols.length];
+      ctx.fillStyle=cols[i%cols.length];
+      ctx.globalAlpha=0.85;
+      ctx.beginPath();
+      ctx.ellipse(0, -R*0.55, R*0.16, R*0.42, 0, 0, 6.283);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha=1; ctx.shadowBlur=12; ctx.shadowColor='#ffd700';
+    ctx.fillStyle='#ffd700'; ctx.beginPath(); ctx.arc(0,0,R*0.22,0,6.283); ctx.fill();
+    ctx.fillStyle='#ff3b6b'; ctx.beginPath(); ctx.arc(0,0,R*0.1,0,6.283); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawDiya(d, t){
+    const {x,y,s,ph}=d;
+    const flick = 1+0.12*Math.sin(t*8+ph)+0.06*Math.sin(t*19+ph*2);
+    // glow on ground
+    const gg=ctx.createRadialGradient(x,y-6*s,2,x,y-6*s,60*s);
+    gg.addColorStop(0,'rgba(255,170,50,0.35)'); gg.addColorStop(1,'transparent');
+    ctx.fillStyle=gg; ctx.beginPath(); ctx.arc(x,y-6*s,60*s,0,6.283); ctx.fill();
+    // base
+    ctx.fillStyle='#8b3a1a';
+    ctx.beginPath(); ctx.ellipse(x, y, 16*s, 5*s, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle='#c25a28';
+    ctx.beginPath();
+    ctx.moveTo(x-14*s, y);
+    ctx.quadraticCurveTo(x, y+10*s, x+14*s, y);
+    ctx.lineTo(x+11*s, y-5*s);
+    ctx.quadraticCurveTo(x, y+2*s, x-11*s, y-5*s);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#3a1405';
+    ctx.beginPath(); ctx.ellipse(x, y-5*s, 11*s, 3*s, 0, 0, 6.283); ctx.fill();
+    // flame glow
+    const fy=y-5*s;
+    const fg=ctx.createRadialGradient(x,fy-8*s,1,x,fy-8*s,30*s*flick);
+    fg.addColorStop(0,'rgba(255,220,120,0.9)'); fg.addColorStop(0.4,'rgba(255,140,30,0.4)'); fg.addColorStop(1,'transparent');
+    ctx.fillStyle=fg; ctx.beginPath(); ctx.arc(x,fy-8*s,30*s*flick,0,6.283); ctx.fill();
+    // flame shape
+    ctx.fillStyle='#ff9a1f';
+    ctx.beginPath();
+    ctx.moveTo(x, fy-22*s*flick);
+    ctx.quadraticCurveTo(x+6*s, fy-8*s, x+3*s, fy-2*s);
+    ctx.quadraticCurveTo(x, fy+1*s, x-3*s, fy-2*s);
+    ctx.quadraticCurveTo(x-6*s, fy-8*s, x, fy-22*s*flick);
+    ctx.fill();
+    ctx.fillStyle='#ffe98a';
+    ctx.beginPath();
+    ctx.moveTo(x, fy-15*s*flick);
+    ctx.quadraticCurveTo(x+3.5*s, fy-7*s, x+1.5*s, fy-3*s);
+    ctx.quadraticCurveTo(x, fy-1*s, x-1.5*s, fy-3*s);
+    ctx.quadraticCurveTo(x-3.5*s, fy-7*s, x, fy-15*s*flick);
+    ctx.fill();
+  }
+
+  // ---------- SKY LANTERNS ----------
+  function spawnLantern(){
+    lanterns.push({
+      x: Math.random()*W, y: H+30,
+      s: 0.5+Math.random()*0.7,
+      vy: 0.3+Math.random()*0.4,
+      sway: Math.random()*Math.PI*2,
+      a: 0
+    });
+  }
+  function updateLanterns(t){
+    if(Math.random()<0.008 && lanterns.length<8) spawnLantern();
+    for(let i=lanterns.length-1;i>=0;i--){
+      const l=lanterns[i];
+      l.y -= l.vy; l.sway += 0.02;
+      l.x += Math.sin(l.sway)*0.4;
+      l.a = Math.min(1, l.a+0.01);
+      if(l.y < -60) lanterns.splice(i,1);
+    }
+  }
+  function drawLanterns(){
+    for(const l of lanterns){
+      const {x,y,s,a}=l;
+      ctx.globalAlpha=a*0.9;
+      const g=ctx.createRadialGradient(x,y,2,x,y,40*s);
+      g.addColorStop(0,'rgba(255,180,80,0.7)'); g.addColorStop(1,'transparent');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,40*s,0,6.283); ctx.fill();
+      ctx.fillStyle='#ffb347';
+      ctx.beginPath();
+      ctx.moveTo(x-10*s, y);
+      ctx.quadraticCurveTo(x-12*s, y-18*s, x, y-22*s);
+      ctx.quadraticCurveTo(x+12*s, y-18*s, x+10*s, y);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#7a2e10'; ctx.fillRect(x-4*s, y, 8*s, 3*s);
+      ctx.fillStyle='#fff2b0'; ctx.beginPath(); ctx.arc(x, y-8*s, 3*s, 0, 6.283); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+
+  // ---------- FIREWORKS ----------
+  const PALETTES = {
+    gold:['#ffd700','#ffed4e','#fff7b0'],
+    red:['#ff2d2d','#ff6b6b','#ffb3b3'],
+    green:['#39ff14','#9dff5c','#e0ffc0'],
+    blue:['#1e90ff','#60a5fa','#bfdbfe'],
+    purple:['#c77dff','#e0aaff','#ffd6ff'],
+    cyan:['#00ffff','#7fffd4','#e0ffff'],
+    magenta:['#ff00ff','#ff77ff','#ffccff']
+  };
+  const PKEYS = Object.keys(PALETTES);
+
+  function launchRocket(){
+    const tx = W*(0.15+Math.random()*0.7);
+    const ty = H*(0.12+Math.random()*0.35);
+    rockets.push({
+      x: tx + (Math.random()-0.5)*40,
+      y: H*0.9,
+      tx, ty,
+      vx: (tx - (tx + (Math.random()-0.5)*40))/60,
+      vy: -(H*0.9 - ty)/60,
+      trail: [],
+      pal: PKEYS[Math.floor(Math.random()*PKEYS.length)],
+      type: ['peony','willow','ring','chrys','double','crackle'][Math.floor(Math.random()*6)]
+    });
+    whistle();
+  }
+
+  function explode(r){
+    const pal = PALETTES[r.pal];
+    const n = r.type==='willow'?70 : r.type==='ring'?64 : r.type==='double'?90 : 100;
+    const speed = 3.2 + Math.random()*1.8;
+    for(let i=0;i<n;i++){
+      let ang, sp;
+      if(r.type==='ring'){ ang = i/n*Math.PI*2; sp = speed; }
+      else if(r.type==='double'){ ang = Math.random()*Math.PI*2; sp = (i%2? speed*0.55 : speed); }
+      else { ang = Math.random()*Math.PI*2; sp = speed*(0.3+Math.random()*0.7); }
+      const vx = Math.cos(ang)*sp, vy = Math.sin(ang)*sp;
+      particles.push({
+        x:r.x, y:r.y, vx, vy,
+        life:0, maxLife: r.type==='willow'?110+Math.random()*40 : 60+Math.random()*35,
+        color: pal[Math.floor(Math.random()*pal.length)],
+        size: r.type==='willow'?1.6:2.2,
+        grav: r.type==='willow'?0.045:0.03,
+        drag: 0.985,
+        willow: r.type==='willow',
+        crack: r.type==='crackle' && Math.random()<0.35
+      });
+    }
+    boom(r.type==='willow'?0.7:1);
+    setTimeout(crackle, 250);
+  }
+
+  function updateFireworks(){
+    // rockets
+    for(let i=rockets.length-1;i>=0;i--){
+      const r=rockets[i];
+      r.trail.push({x:r.x,y:r.y});
+      if(r.trail.length>8) r.trail.shift();
+      r.x+=r.vx; r.y+=r.vy; r.vy+=0.02;
+      if(r.vy >= -0.5 || r.y <= r.ty){
+        explode(r); rockets.splice(i,1);
+      }
+    }
+    // particles
+    for(let i=particles.length-1;i>=0;i--){
+      const p=particles[i];
+      p.x+=p.vx; p.y+=p.vy; p.vx*=p.drag; p.vy*=p.drag; p.vy+=p.grav;
+      p.life++;
+      if(p.crack && p.life>p.maxLife*0.6 && Math.random()<0.06){
+        particles.push({x:p.x,y:p.y,vx:(Math.random()-0.5)*2,vy:(Math.random()-0.5)*2,life:0,maxLife:12,color:'#fff7b0',size:1.6,grav:0.01,drag:0.95,willow:false,crack:false});
+      }
+      if(p.life>=p.maxLife) particles.splice(i,1);
+    }
+    if(particles.length>1400) particles.splice(0, particles.length-1400);
+  }
+
+  function drawFireworks(){
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    // rocket trails
+    for(const r of rockets){
+      for(let i=0;i<r.trail.length;i++){
+        const tp=r.trail[i];
+        ctx.globalAlpha = i/r.trail.length*0.8;
+        ctx.strokeStyle='#ffd9a0'; ctx.lineWidth=2;
+        ctx.beginPath();
+        const prev = i>0? r.trail[i-1] : {x:r.x,y:r.y};
+        ctx.moveTo(prev.x,prev.y); ctx.lineTo(tp.x,tp.y); ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+      ctx.fillStyle='#fff2b0'; ctx.beginPath(); ctx.arc(r.x,r.y,2.5,0,6.283); ctx.fill();
+    }
+    // particles
+    ctx.lineCap='round';
+    for(const p of particles){
+      const a = Math.max(0, 1 - p.life/p.maxLife);
+      ctx.globalAlpha = p.willow? a*0.9 : a;
+      ctx.strokeStyle=p.color; ctx.lineWidth=p.size;
+      ctx.beginPath();
+      ctx.moveTo(p.x - p.vx*2, p.y - p.vy*2);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha=1;
+  }
+
+  // ---------- EMBERS from diyas ----------
+  function updateEmbers(){
+    if(Math.random()<0.3 && embers.length<60){
+      const d = diyas[Math.floor(Math.random()*diyas.length)];
+      embers.push({x:d.x, y:d.y-8, vy:-(0.4+Math.random()*0.7), vx:(Math.random()-0.5)*0.3, life:0, max:120+Math.random()*80, ph:Math.random()*6.28});
+    }
+    for(let i=embers.length-1;i>=0;i--){
+      const e=embers[i];
+      e.y+=e.vy; e.x+=e.vx+Math.sin(e.ph+e.life*0.05)*0.3; e.life++;
+      if(e.life>e.max) embers.splice(i,1);
+    }
+  }
+  function drawEmbers(){
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    for(const e of embers){
+      const a = Math.max(0, 1-e.life/e.max);
+      ctx.globalAlpha=a*0.8;
+      ctx.fillStyle='#ffcc55';
+      ctx.beginPath(); ctx.arc(e.x,e.y,1.4,0,6.283); ctx.fill();
+    }
+    ctx.restore(); ctx.globalAlpha=1;
+  }
+
+  // ---------- TEXT ----------
+  function drawText(t){
+    if(t < 5) return;
+    const fade = Math.min(1, (t-5)/2.5);
+    const cx=W/2, cy=H*0.42;
+    ctx.save();
+    ctx.globalAlpha=fade;
+    ctx.textAlign='center';
+    // glow pulse
+    const pulse = 18 + 8*Math.sin(t*2);
+    ctx.shadowColor='rgba(255,180,40,0.9)';
+    ctx.shadowBlur=pulse;
+    const grad = ctx.createLinearGradient(cx-200,0,cx+200,0);
+    grad.addColorStop(0,'#fff7b0'); grad.addColorStop(0.5,'#ffd700'); grad.addColorStop(1,'#ff9500');
+    ctx.fillStyle=grad;
+    ctx.font = `bold ${Math.min(W*0.11,64)}px Georgia, 'Noto Serif Devanagari', serif`;
+    ctx.fillText('शुभ दीपावली', cx, cy);
+    ctx.font = `bold ${Math.min(W*0.075,42)}px Georgia, serif`;
+    ctx.fillText('Happy Diwali', cx, cy + Math.min(W*0.11,64)*1.1);
+    ctx.shadowBlur=10;
+    ctx.fillStyle='#ffd9a0';
+    ctx.font = `${Math.min(W*0.035,20)}px Georgia, serif`;
+    ctx.fillText('✨ Festival of Lights · दीपोत्सव ✨', cx, cy + Math.min(W*0.11,64)*1.1 + Math.min(W*0.075,42)*1.3);
+    // sparkles around text
+    if(Math.random()<0.3){
+      const sx = cx + (Math.random()-0.5)*W*0.5;
+      const sy = cy + (Math.random()-0.5)*80;
+      ctx.fillStyle='#fff';
+      ctx.beginPath(); ctx.arc(sx,sy,1.5+Math.random()*1.5,0,6.283); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ---------- MAIN LOOP ----------
+  let startT = 0, lastLaunch = 0;
+  function frame(now){
+    if(!startT) startT = now;
+    const t = (now - startT)/1000;
+    drawSky(t);
+    drawSilhouette();
+    drawRangoli(t);
+    for(const d of diyas) drawDiya(d, t);
+    updateEmbers(); drawEmbers();
+    updateLanterns(t); drawLanterns();
+    if(started){
+      if(t - lastLaunch > 0.7 + Math.random()*0.6){ launchRocket(); lastLaunch = t; if(Math.random()<0.3) launchRocket(); }
+      updateFireworks();
+    }
+    drawFireworks();
+    drawText(t);
+    requestAnimationFrame(frame);
+  }
+
+  // start on tap
+  document.getElementById('start').addEventListener('click', function(){
+    initAudio();
+    if(AC && AC.state==='suspended') AC.resume();
+    started = true;
+    this.classList.add('hide');
+    // opening volley
+    setTimeout(launchRocket, 400); setTimeout(launchRocket, 900); setTimeout(launchRocket, 1400);
+  });
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
